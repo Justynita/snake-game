@@ -5,7 +5,7 @@ import time
 import curses
 from pynput import keyboard
 from pynput.keyboard import Key
-
+import socket
 
 class coord:
     DIRECTIONS = ['left', 'right', 'up', 'down']
@@ -30,7 +30,7 @@ class coord:
         return False
 
 class plane:
-    def __init__(self, screen, x=5, y=3, width=110, height=30):
+    def __init__(self, screen, x=1, y=2, width=110, height=30):
         self.x = x
         self.y = y
         self.width = width
@@ -38,14 +38,14 @@ class plane:
         self.screen = screen
 
     def draw(self):
-        self.screen.addstr(self.y, self.x + 1, '=' * (self.width-1))
-        self.screen.addstr(self.y + self.height, self.x + 1, '=' * (self.width-1))
+        self.screen.addstr(self.y, self.x + 1, '=' * (self.width-1), curses.color_pair(COLOR_PURPLE) )
+        self.screen.addstr(self.y + self.height, self.x + 1, '=' * (self.width-1), curses.color_pair(COLOR_PURPLE) )
 
         for i in range(self.y+1, self.y + self.height):
-            self.screen.addstr(i, self.x, '|')
+            self.screen.addstr(i, self.x, '|', curses.color_pair(COLOR_PURPLE))
 
         for i in range(self.y+1, self.y + self.height):
-            self.screen.addstr(i, self.x + self.width, '|')
+            self.screen.addstr(i, self.x + self.width, '|', curses.color_pair(COLOR_PURPLE))
 
 
     def does_snake_touch_bounds(self, snake):
@@ -61,16 +61,25 @@ class plane:
         return False
 
     def draw_snake(self, __snake):
-        for body_part_coord in __snake.coords:
-            self.screen.addstr(body_part_coord.y, body_part_coord.x, snake.SNAKE_BODY_CHAR)
+
+        dchar = snake.SNAKE_HEAD_CHAR
+        dcolor = COLOR_RED
+        body_len = len(__snake.coords)
+        for i in range(body_len):
+            body_part_coord = __snake.coords[i]
+            if i == (body_len - 1):
+                dchar = snake.SNAKE_TAIL_CHAR
+            self.screen.addstr(body_part_coord.y, body_part_coord.x, dchar, curses.color_pair(dcolor))
+            dchar = snake.SNAKE_BODY_CHAR
+            dcolor = COLOR_YELLOW
 
     def draw_target(self, _target):
-        self.screen.addstr(_target.coords.y, _target.coords.x, target.TARGET_CHAR)
+        self.screen.addstr(_target.coords.y, _target.coords.x, target.TARGET_CHAR, curses.color_pair(COLOR_RED))
 
     def draw_score(self, score):
         score_str = str(score.points)
-        self.screen.addstr(self.y - 1, self.x, "| SCORE: " + score_str + " |")
-        self.screen.addstr(self.y - 2, self.x + 1, '-' * (-2 + len("| SCORE: " + score_str + " |")))
+        self.screen.addstr(self.y - 1, self.x, "| SCORE: " + score_str + " |", curses.color_pair(COLOR_GREEN))
+        self.screen.addstr(self.y - 2, self.x + 1, '-' * (-2 + len("| SCORE: " + score_str + " |")), curses.color_pair(COLOR_GREEN))
 
     def top_edge(self):
         return self.y
@@ -92,13 +101,15 @@ class plane:
 
 class snake:
 
-    SNAKE_BODY_CHAR = 'O'
+    SNAKE_BODY_CHAR = 'o'
+    SNAKE_HEAD_CHAR = '@'
+    SNAKE_TAIL_CHAR = '+'
 
     def __init__(self, plane):
         self.length = 6
         self.coords = []  # list of coords with head at pos 0
         self.plane = plane
-        self.is_paused = False
+        self.is_paused = True
 
         # default direction of the snake
         self.direction = 'right'
@@ -217,17 +228,23 @@ class SnakeGame:
         self.rows, self.cols = screen.getmaxyx()
         self.STOP_GAME = False
 
-        self.plane = plane(screen)
+        self.plane = plane(screen, width=self.cols-2, height=self.rows-3)
         self.snake = snake(self.plane)
         self.target = target(self.snake, self.plane)
         self.score = score()
-        self.GAME_SPEED = 100
+        self.GAME_SPEED = 10
 
         # captue key events & set direction accordingly
         self.listener = keyboard.Listener(on_press=self.on_press)
 
     def start(self):
         self.listener.start()
+        curses.start_color()
+        curses.use_default_colors()
+
+        for i in range(0, curses.COLORS):
+            curses.init_pair(i + 1, i, -1)
+
         while True:
             did_snake_eat_target = self.snake.eat_target(self.target)
 
@@ -242,11 +259,9 @@ class SnakeGame:
 
             # refresh screen
             self.screen.refresh()
+
             # fps scheduler
             time.sleep(10 / self.GAME_SPEED)
-
-            curses.endwin()
-            self.screen.clear()
 
             self.snake.progress()
 
@@ -254,6 +269,9 @@ class SnakeGame:
                 self.screen.clear()
                 self.game_over()
                 break
+
+            # curses.endwin()
+            self.screen.clear()
 
         self.game_over()
 
@@ -291,10 +309,9 @@ class SnakeGame:
     def game_over(self):
         self.listener.stop()
         self.screen.clear()
+        curses.endwin()
         print('GAME OVER....')
         time.sleep(3)
-        curses.endwin()
-        self.screen.clear()
         exit(0)
 
 def main():
