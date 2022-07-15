@@ -7,6 +7,13 @@ from pynput import keyboard
 from pynput.keyboard import Key
 import socket
 
+COLOR_GREEN = 80
+COLOR_BLUE = 40
+COLOR_PURPLE = 20
+COLOR_RED = 10
+COLOR_YELLOW = 150
+COLOR_MAGENTA = 90
+
 class coord:
     DIRECTIONS = ['left', 'right', 'up', 'down']
     DIRECTIONS_MOVES = [
@@ -232,19 +239,41 @@ class SnakeGame:
         self.snake = snake(self.plane)
         self.target = target(self.snake, self.plane)
         self.score = score()
-        self.GAME_SPEED = 10
+        self.GAME_SPEED = 100
 
         # captue key events & set direction accordingly
         self.listener = keyboard.Listener(on_press=self.on_press)
 
-    def start(self):
-        self.listener.start()
+        # intialize game, curses...
+        self.init_game()
+
+    def init_game(self):
         curses.start_color()
         curses.use_default_colors()
 
         for i in range(0, curses.COLORS):
             curses.init_pair(i + 1, i, -1)
 
+    def start(self):
+        game_menu = menu(self)
+        choice = game_menu.show_menu()
+
+        self.screen.clear()
+        self.screen.refresh()
+
+        if choice == 0:
+            # start single player game
+            self.start_sp()
+
+        elif choice == 1:
+            # do not support multiplayer yet
+            exit(0)
+        elif choice == 2:
+            exit(0)
+
+    # start game in single player mode
+    def start_sp(self):
+        self.listener.start()
         while True:
             did_snake_eat_target = self.snake.eat_target(self.target)
 
@@ -274,10 +303,6 @@ class SnakeGame:
             self.screen.clear()
 
         self.game_over()
-
-
-    def show_menu():
-        pass
 
     def on_press(self, key):
         try:
@@ -309,15 +334,113 @@ class SnakeGame:
     def game_over(self):
         self.listener.stop()
         self.screen.clear()
-        curses.endwin()
+        self.screen.refresh()
         print('GAME OVER....')
         time.sleep(3)
         exit(0)
 
+
+# game menu class
+class menu:
+
+    SP_CHOICE = "Single Player"
+    MP_CHOICE = "Multi Player"
+    QG_CHOICE = "Quit Game"
+
+    CHOICES = [SP_CHOICE, MP_CHOICE, QG_CHOICE]
+
+    def __init__(self, game):
+        self.rows = game.rows
+        self.cols = game.cols
+        self.game = game
+
+        self.screen = game.screen
+
+        self.sp_choice = "> " + menu.SP_CHOICE  # choice 0
+        self.mp_choice = menu.MP_CHOICE  # choice 1
+        self.qg_choice = menu.QG_CHOICE  # choice 2
+
+        self.selected_choice = 0
+
+        self.done = False
+        self.key_listener = keyboard.Listener(on_press=self.on_press)
+
+        self.update_misc()
+
+    def update_misc(self):
+        self.choices = [self.sp_choice, self.mp_choice, self.qg_choice]
+
+    def show_menu(self):
+
+        self.key_listener.start()
+
+        while True:
+
+            if self.done:
+                return self.selected_choice
+
+            # clear screen
+            self.screen.clear()
+
+            # draw top-bottom bounds
+            self.screen.addstr(1, 1, "-" * (self.cols - 3), curses.color_pair(COLOR_GREEN))
+            self.screen.addstr(self.rows-1, 1, "-" * (self.cols - 3), curses.color_pair(COLOR_GREEN))
+
+            # draw left-right bounds
+            for i in range(1, self.rows - 2):
+                self.screen.addstr(i+1, 0, "|", curses.color_pair(COLOR_GREEN))
+                self.screen.addstr(i+1, self.cols - 2, "|", curses.color_pair(COLOR_GREEN))
+
+            y_menu = int(self.rows / 3)
+            x_menu = int(self.cols / 2.4)
+
+            self.screen.addstr(y_menu, x_menu , self.sp_choice, curses.color_pair(COLOR_YELLOW))
+            self.screen.addstr(y_menu + 4, x_menu, self.mp_choice, curses.color_pair(COLOR_YELLOW))
+            self.screen.addstr(y_menu + 8, x_menu, self.qg_choice, curses.color_pair(COLOR_YELLOW))
+
+            # refresh screen
+            self.screen.refresh()
+
+            # wait before drawing menu again
+            time.sleep(0.05)
+
+    def update_choice(self):
+
+        self.sp_choice = menu.SP_CHOICE
+        self.mp_choice = menu.MP_CHOICE
+        self.qg_choice = menu.QG_CHOICE
+
+        if self.selected_choice == 0:
+            self.sp_choice = "> " + menu.SP_CHOICE
+        elif self.selected_choice == 1:
+            self.mp_choice = "> " + menu.MP_CHOICE
+        elif self.selected_choice == 2:
+            self.qg_choice = "> " + menu.QG_CHOICE
+
+    def on_press(self, key):
+        try:
+            if key==Key.up:
+                if self.selected_choice > 0:
+                    self.selected_choice -= 1
+                    self.update_choice()
+            elif key==Key.down:
+                if self.selected_choice < 2:
+                    self.selected_choice += 1
+                    self.update_choice()
+            elif key==Key.enter:
+                self.process_choice()
+            else:
+                pass
+        except AttributeError:
+            pass
+
+    def process_choice(self):
+        self.key_listener.stop()
+        self.done = True
+
 def main():
     screen = curses.initscr()
     game = SnakeGame(screen)
-
     game.start()
 
 if __name__ == '__main__':
